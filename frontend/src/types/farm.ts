@@ -81,7 +81,8 @@ export interface RegisterData {
     name: string;
     email: string;
     password: string;
-    passwordConfirmation: string;
+    password_confirmation: string;
+    profile_picture?: File;
 }
 
 export interface FarmStatistics {
@@ -93,7 +94,7 @@ export interface FarmStatistics {
 export interface Activity {
     id: number;
     type: 'create' | 'update' | 'delete';
-    entityType: 'farm' | 'product';
+    entityType: 'farm' | 'product' | 'crop';
     entityId: number;
     entityName: string;
     timestamp: string;

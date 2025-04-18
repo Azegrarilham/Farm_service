@@ -79,10 +79,31 @@ export const AuthService = {
     },
 
     register: async (data: RegisterData): Promise<{ user: AuthUser; token: string }> => {
-        const response = await api.post('/register', data);
-        // Store token for future requests
-        storeToken(response.data.token);
-        return response.data;
+        // Create a FormData object if there's a profile picture
+        if (data.profile_picture) {
+            const formData = new FormData();
+            formData.append('name', data.name);
+            formData.append('email', data.email);
+            formData.append('password', data.password);
+            formData.append('password_confirmation', data.password_confirmation);
+            formData.append('profile_picture', data.profile_picture);
+
+            const response = await api.post('/register', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                }
+            });
+
+            // Store token for future requests
+            storeToken(response.data.token);
+            return response.data;
+        } else {
+            // Use regular JSON if no profile picture
+            const response = await api.post('/register', data);
+            // Store token for future requests
+            storeToken(response.data.token);
+            return response.data;
+        }
     },
 
     logout: async (): Promise<void> => {
@@ -146,26 +167,125 @@ export const FarmService = {
     },
 
     create: async (farm: FormData | FarmFormData): Promise<Farm> => {
-        const headers = farm instanceof FormData ? {
-            'Content-Type': 'multipart/form-data'
-        } : undefined;
+        try {
+            // If not already a FormData, convert it
+            if (!(farm instanceof FormData)) {
+                const formData = new FormData();
 
-        const response = await api.post<Farm>('/farms', farm, { headers });
-        return response.data;
+                // Add basic fields
+                Object.entries(farm).forEach(([key, value]) => {
+                    if (key === 'photos' || key === 'primary_crops') {
+                        return; // Handle these separately
+                    }
+
+                    if (value !== undefined && value !== null) {
+                        formData.append(key, String(value));
+                    }
+                });
+
+                // Handle primary_crops - use array notation for Laravel
+                if (Array.isArray(farm.primary_crops) && farm.primary_crops.length > 0) {
+                    farm.primary_crops.forEach((crop, index) => {
+                        formData.append(`primary_crops[${index}]`, crop);
+                    });
+                } else {
+                    // Send empty string to ensure field is present but empty
+                    formData.append('primary_crops', '');
+                }
+
+                // Handle photos
+                if (farm.photos && farm.photos.length > 0) {
+                    farm.photos.forEach((photo, index) => {
+                        formData.append(`photos[${index}]`, photo);
+                    });
+                }
+
+                farm = formData;
+            }
+
+            console.log('Creating farm with data:');
+            for (const [key, value] of (farm as FormData).entries()) {
+                console.log(`${key}: ${value}`);
+            }
+
+            const response = await api.post<Farm>('/farms', farm, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            return response.data;
+        } catch (error: any) {
+            console.error('Error in FarmService.create:', error);
+            if (error.response) {
+                console.error('Server response:', error.response.data);
+            }
+            throw error;
+        }
     },
 
     update: async (id: number, farm: FormData | FarmFormData): Promise<Farm> => {
-        const headers = farm instanceof FormData ? {
-            'Content-Type': 'multipart/form-data'
-        } : undefined;
+        try {
+            // If not already a FormData, convert it
+            if (!(farm instanceof FormData)) {
+                const formData = new FormData();
 
-        if (farm instanceof FormData) {
-            farm.append('_method', 'PUT'); // Laravel requires this for form data PUT requests
-            const response = await api.post<Farm>(`/farms/${id}`, farm, { headers });
+                // Add basic fields
+                Object.entries(farm).forEach(([key, value]) => {
+                    if (key === 'photos' || key === 'primary_crops') {
+                        return; // Handle these separately
+                    }
+
+                    if (value !== undefined && value !== null) {
+                        formData.append(key, String(value));
+                    }
+                });
+
+                // Handle primary_crops - use array notation for Laravel
+                if (Array.isArray(farm.primary_crops) && farm.primary_crops.length > 0) {
+                    farm.primary_crops.forEach((crop, index) => {
+                        formData.append(`primary_crops[${index}]`, crop);
+                    });
+                } else {
+                    // Send empty string to ensure field is present but empty
+                    formData.append('primary_crops', '');
+                }
+
+                // Handle photos
+                if (farm.photos && farm.photos.length > 0) {
+                    farm.photos.forEach((photo, index) => {
+                        formData.append(`photos[${index}]`, photo);
+                    });
+                }
+
+                farm = formData;
+            }
+
+            // Add Laravel _method field to indicate PUT
+            (farm as FormData).append('_method', 'PUT');
+
+            console.log('Updating farm with data:');
+            for (const [key, value] of (farm as FormData).entries()) {
+                console.log(`${key}: ${value}`);
+            }
+
+            const response = await api.post<Farm>(`/farms/${id}`, farm, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
             return response.data;
-        } else {
-            const response = await api.put<Farm>(`/farms/${id}`, farm, { headers });
-            return response.data;
+        } catch (error: any) {
+            console.error('Error in FarmService.update:', error);
+            if (error.response) {
+                console.error('Server response:', error.response.data);
+            }
+            throw error;
         }
     },
 
@@ -626,7 +746,28 @@ export const CropService = {
             }
             throw error;
         }
-    }
+    },
+
+    getByFarmId: async (farmId: number): Promise<any[]> => {
+        try {
+            const response = await api.get(`/farms/${farmId}/crops`);
+            console.log(`Get crops for farm ${farmId} response:`, response.status, response.data);
+
+            // Handle potential data formats
+            if (Array.isArray(response.data)) {
+                return response.data;
+            } else if (response.data && response.data.data && Array.isArray(response.data.data)) {
+                return response.data.data;
+            } else {
+                console.error('Unexpected data format for farm crops:', response.data);
+                return [];
+            }
+        } catch (error: any) {
+            console.error(`Error fetching crops for farm ${farmId}:`, error);
+            // Return empty array instead of throwing
+            return [];
+        }
+    },
 };
 
 // Handle unauthorized responses

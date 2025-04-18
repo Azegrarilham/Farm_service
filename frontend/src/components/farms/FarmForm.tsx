@@ -133,10 +133,16 @@ const FarmForm = ({ isEditing = false }: FarmFormProps) => {
 
     const handleAddCrop = () => {
         if (cropInput.trim()) {
-            setFormData(prev => ({
-                ...prev,
-                primary_crops: [...(prev.primary_crops || []), cropInput.trim()]
+            // Create a new array with the existing crops and the new crop
+            const updatedCrops = [...(Array.isArray(formData.primary_crops) ? formData.primary_crops : []), cropInput.trim()];
+
+            // Update form data
+            setFormData(prevData => ({
+                ...prevData,
+                primary_crops: updatedCrops
             }));
+
+            // Clear input
             setCropInput('');
             setIsDirty(true);
         }
@@ -150,19 +156,28 @@ const FarmForm = ({ isEditing = false }: FarmFormProps) => {
         setIsDirty(true);
     };
 
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            e.preventDefault(); // Prevent form submission
+            handleAddCrop();
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
         setError(null);
 
         try {
-            // Create FormData for file uploads
+            console.log('Form data before submission:', formData);
+
+            // Create FormData object
             const formDataObj = new FormData();
 
-            // Add all text fields
+            // Add basic fields
             Object.entries(formData).forEach(([key, value]) => {
                 if (key === 'photos' || key === 'primary_crops') {
-                    return; // Handle separately
+                    return; // Handle these separately
                 }
 
                 if (value !== undefined && value !== null) {
@@ -170,26 +185,44 @@ const FarmForm = ({ isEditing = false }: FarmFormProps) => {
                 }
             });
 
-            // Add primary_crops as JSON string
-            if (formData.primary_crops && formData.primary_crops.length > 0) {
-                formDataObj.append('primary_crops', JSON.stringify(formData.primary_crops));
+            // Handle primary_crops specifically for Laravel
+            if (Array.isArray(formData.primary_crops) && formData.primary_crops.length > 0) {
+                // For Laravel, we need to add items as primary_crops[] for array handling
+                formData.primary_crops.forEach((crop, index) => {
+                    formDataObj.append(`primary_crops[${index}]`, crop);
+                });
+            } else {
+                // Ensure we send at least an empty array indicator to Laravel
+                formDataObj.append('primary_crops', '');
             }
 
-            // Add photos if any
+            // Add photos
             if (formData.photos && formData.photos.length > 0) {
-                formData.photos.forEach(photo => {
-                    formDataObj.append('photos[]', photo);
+                formData.photos.forEach((photo, index) => {
+                    formDataObj.append(`photos[${index}]`, photo);
                 });
             }
 
-            if (isEditing && id) {
-                await FarmService.update(parseInt(id, 10), formDataObj);
-            } else {
-                await FarmService.create(formDataObj);
+            console.log('Sending form data:');
+            for (const [key, value] of formDataObj.entries()) {
+                console.log(`${key}: ${value}`);
             }
 
+            let response;
+            if (isEditing && id) {
+                response = await FarmService.update(parseInt(id, 10), formDataObj);
+            } else {
+                response = await FarmService.create(formDataObj);
+            }
+
+            console.log('Response:', response);
             navigate('/farms');
         } catch (error: any) {
+            console.error('Error submitting form:', error);
+            if (error.response) {
+                console.error('Error response data:', error.response.data);
+            }
+
             setError(
                 error.response?.data?.message ||
                 `Failed to ${isEditing ? 'update' : 'create'} farm. Please check your data and try again.`
@@ -329,6 +362,12 @@ const FarmForm = ({ isEditing = false }: FarmFormProps) => {
                                 type="text"
                                 value={cropInput}
                                 onChange={(e) => setCropInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        handleAddCrop();
+                                    }
+                                }}
                                 className="form-input flex-grow mr-2"
                                 placeholder="Add a crop (e.g. Corn, Wheat)"
                             />
@@ -340,7 +379,9 @@ const FarmForm = ({ isEditing = false }: FarmFormProps) => {
                                 Add
                             </button>
                         </div>
-                        {formData.primary_crops && formData.primary_crops.length > 0 && (
+
+                        {/* Show added crops */}
+                        {Array.isArray(formData.primary_crops) && formData.primary_crops.length > 0 && (
                             <div className="mt-2 flex flex-wrap gap-2">
                                 {formData.primary_crops.map((crop, index) => (
                                     <div key={index} className="bg-farm-green-100 text-farm-green-800 px-3 py-1 rounded-full flex items-center">

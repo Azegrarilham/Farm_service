@@ -15,10 +15,10 @@ const FarmList = () => {
     useEffect(() => {
         const fetchFarms = async () => {
             try {
-                const data = await FarmService.getAll();
+                const data = await FarmService.getUserFarms();
                 setFarms(data);
             } catch (error: any) {
-                setError('Failed to load farms. Please try again later.');
+                setError('Failed to load your farms. Please try again later.');
                 console.error('Error fetching farms:', error);
             } finally {
                 setIsLoading(false);
@@ -92,7 +92,7 @@ const FarmList = () => {
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold text-gray-800">Farms</h2>
+                <h2 className="text-2xl font-bold text-gray-800">My Farms</h2>
                 <button
                     onClick={() => navigate('/farms/add')}
                     className="btn btn-primary flex items-center"
@@ -109,7 +109,7 @@ const FarmList = () => {
                     <input
                         type="text"
                         className="form-input pl-10"
-                        placeholder="Search farms by name or location"
+                        placeholder="Search your farms by name or location"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
@@ -126,7 +126,7 @@ const FarmList = () => {
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                     </svg>
-                    <h3 className="text-lg font-medium text-gray-900">No farms found</h3>
+                    <h3 className="text-lg font-medium text-gray-900">You don't have any farms yet</h3>
                     <p className="mt-2 text-gray-600">
                         {searchTerm ? 'Try adjusting your search terms.' : 'Get started by adding your first farm.'}
                     </p>

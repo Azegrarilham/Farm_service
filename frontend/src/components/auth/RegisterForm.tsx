@@ -1,16 +1,21 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { RegisterData } from '../../types/farm';
 import { AuthService } from '../../services/api';
 import { useNavigate } from 'react-router-dom';
 
 const RegisterForm = () => {
     const navigate = useNavigate();
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
     const [formData, setFormData] = useState<RegisterData>({
         name: '',
         email: '',
         password: '',
-        passwordConfirmation: '',
+        password_confirmation: '',
     });
+
+    const [profilePicture, setProfilePicture] = useState<File | null>(null);
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [isLoading, setIsLoading] = useState(false);
@@ -28,6 +33,28 @@ const RegisterForm = () => {
                 ...errors,
                 [name]: '',
             });
+        }
+    };
+
+    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            setProfilePicture(file);
+
+            // Create a preview URL
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setPreviewUrl(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+
+            // Clear any profile picture error
+            if (errors.profile_picture) {
+                setErrors({
+                    ...errors,
+                    profile_picture: '',
+                });
+            }
         }
     };
 
@@ -50,8 +77,8 @@ const RegisterForm = () => {
             newErrors.password = 'Password must be at least 8 characters';
         }
 
-        if (formData.password !== formData.passwordConfirmation) {
-            newErrors.passwordConfirmation = 'Passwords do not match';
+        if (formData.password !== formData.password_confirmation) {
+            newErrors.password_confirmation = 'Passwords do not match';
         }
 
         setErrors(newErrors);
@@ -69,7 +96,16 @@ const RegisterForm = () => {
         setIsLoading(true);
 
         try {
-            await AuthService.register(formData);
+            const registrationData: RegisterData = {
+                ...formData,
+            };
+
+            // Add profile picture if selected
+            if (profilePicture) {
+                registrationData.profile_picture = profilePicture;
+            }
+
+            await AuthService.register(registrationData);
             navigate('/login', { state: { message: 'Registration successful! Please log in.' } });
         } catch (error: any) {
             if (error.response?.data?.errors) {
@@ -130,6 +166,39 @@ const RegisterForm = () => {
                 </div>
 
                 <div className="mb-4">
+                    <label htmlFor="profile_picture" className="form-label">Profile Picture (Optional)</label>
+                    <div className="mt-1 flex items-center">
+                        <div className="mr-4">
+                            {previewUrl ? (
+                                <img
+                                    src={previewUrl}
+                                    alt="Profile preview"
+                                    className="h-16 w-16 rounded-full object-cover"
+                                />
+                            ) : (
+                                <div className="h-16 w-16 rounded-full bg-gray-200 flex items-center justify-center text-gray-400">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                    </svg>
+                                </div>
+                            )}
+                        </div>
+                        <label className="btn btn-outline text-sm cursor-pointer">
+                            Upload Photo
+                            <input
+                                type="file"
+                                id="profile_picture"
+                                ref={fileInputRef}
+                                onChange={handleImageChange}
+                                className="sr-only"
+                                accept="image/*"
+                            />
+                        </label>
+                    </div>
+                    {errors.profile_picture && <p className="mt-1 text-sm text-red-600">{errors.profile_picture}</p>}
+                </div>
+
+                <div className="mb-4">
                     <label htmlFor="password" className="form-label">Password</label>
                     <input
                         type="password"
@@ -144,18 +213,18 @@ const RegisterForm = () => {
                 </div>
 
                 <div className="mb-6">
-                    <label htmlFor="passwordConfirmation" className="form-label">Confirm Password</label>
+                    <label htmlFor="password_confirmation" className="form-label">Confirm Password</label>
                     <input
                         type="password"
-                        id="passwordConfirmation"
-                        name="passwordConfirmation"
-                        value={formData.passwordConfirmation}
+                        id="password_confirmation"
+                        name="password_confirmation"
+                        value={formData.password_confirmation}
                         onChange={handleChange}
-                        className={`form-input ${errors.passwordConfirmation ? 'border-red-500' : ''}`}
+                        className={`form-input ${errors.password_confirmation ? 'border-red-500' : ''}`}
                         placeholder="••••••••"
                     />
-                    {errors.passwordConfirmation && (
-                        <p className="mt-1 text-sm text-red-600">{errors.passwordConfirmation}</p>
+                    {errors.password_confirmation && (
+                        <p className="mt-1 text-sm text-red-600">{errors.password_confirmation}</p>
                     )}
                 </div>
 

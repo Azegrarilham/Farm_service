@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FarmService, AuthService } from '../../services/api';
+import { FarmService, AuthService, CropService } from '../../services/api';
 import { FarmStatistics, AuthUser } from '../../types/farm';
 
 const Dashboard = () => {
@@ -9,18 +9,23 @@ const Dashboard = () => {
     const [user, setUser] = useState<AuthUser | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [cropsCount, setCropsCount] = useState<number>(0);
 
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const [statsData, userData] = await Promise.all([
+                const [statsData, userData, userCrops] = await Promise.all([
                     FarmService.getStatistics(),
-                    AuthService.getUser()
+                    AuthService.getUser(),
+                    CropService.getUserCrops()
                 ]);
 
                 console.log('Recent Activities:', statsData.recentActivities);
+                console.log('User Crops:', userCrops);
+
                 setStatistics(statsData);
                 setUser(userData);
+                setCropsCount(userCrops.length);
             } catch (error) {
                 setError('Failed to load dashboard data. Please try again.');
                 console.error('Error fetching dashboard data:', error);
@@ -58,7 +63,7 @@ const Dashboard = () => {
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-800">Dashboard</h2>
+                    <h2 className="text-2xl font-bold text-gray-800">My Dashboard</h2>
                     <p className="text-gray-600">Welcome back, {user?.name || 'Farmer'}</p>
                 </div>
                 <button
@@ -76,7 +81,7 @@ const Dashboard = () => {
                 {/* Farm Stats Card */}
                 <div className="card bg-gradient-to-br from-farm-green-50 to-farm-green-100 border border-farm-green-200">
                     <div className="flex items-center justify-between mb-6">
-                        <h3 className="text-lg font-medium text-gray-900">Farm Overview</h3>
+                        <h3 className="text-lg font-medium text-gray-900">My Farm Overview</h3>
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-farm-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
                         </svg>
@@ -84,24 +89,24 @@ const Dashboard = () => {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                         <div className="bg-white rounded-lg p-4 shadow-sm">
-                            <h4 className="text-sm font-medium text-gray-500 mb-1">Total Farms</h4>
+                            <h4 className="text-sm font-medium text-gray-500 mb-1">My Farms</h4>
                             <p className="text-3xl font-bold text-farm-green-600">{statistics?.totalFarms || 0}</p>
                             <button
                                 onClick={() => navigate('/farms')}
                                 className="mt-2 text-sm text-farm-green-600 hover:text-farm-green-800 font-medium"
                             >
-                                View all farms →
+                                View my farms →
                             </button>
                         </div>
 
                         <div className="bg-white rounded-lg p-4 shadow-sm">
-                            <h4 className="text-sm font-medium text-gray-500 mb-1">Total Products</h4>
-                            <p className="text-3xl font-bold text-farm-green-600">{statistics?.totalProducts || 0}</p>
+                            <h4 className="text-sm font-medium text-gray-500 mb-1">My Crops</h4>
+                            <p className="text-3xl font-bold text-farm-green-600">{cropsCount}</p>
                             <button
-                                onClick={() => navigate('/farms')}
+                                onClick={() => navigate('/sell-crops')}
                                 className="mt-2 text-sm text-farm-green-600 hover:text-farm-green-800 font-medium"
                             >
-                                Manage products →
+                                Manage crops →
                             </button>
                         </div>
                     </div>
@@ -123,6 +128,16 @@ const Dashboard = () => {
                         </button>
 
                         <button
+                            onClick={() => navigate('/sell-crops/add')}
+                            className="flex flex-col items-center justify-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-farm-green-500 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                            </svg>
+                            <span className="text-sm font-medium text-gray-900">Sell Crops</span>
+                        </button>
+
+                        <button
                             onClick={() => navigate('/profile')}
                             className="flex flex-col items-center justify-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                         >
@@ -133,23 +148,13 @@ const Dashboard = () => {
                         </button>
 
                         <button
-                            onClick={() => navigate('/farms')}
+                            onClick={() => navigate('/supplies')}
                             className="flex flex-col items-center justify-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-farm-green-500 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
                             </svg>
-                            <span className="text-sm font-medium text-gray-900">View Farms</span>
-                        </button>
-
-                        <button
-                            onClick={() => AuthService.logout().then(() => navigate('/login'))}
-                            className="flex flex-col items-center justify-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-500 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                            </svg>
-                            <span className="text-sm font-medium text-gray-900">Logout</span>
+                            <span className="text-sm font-medium text-gray-900">Shop Supplies</span>
                         </button>
                     </div>
                 </div>
@@ -157,7 +162,7 @@ const Dashboard = () => {
 
             {/* Recent Activity */}
             <div className="card">
-                <h3 className="text-lg font-medium text-gray-900 mb-6">Recent Activity</h3>
+                <h3 className="text-lg font-medium text-gray-900 mb-6">My Recent Activity</h3>
 
                 {statistics?.recentActivities && statistics.recentActivities.length > 0 ? (
                     <div className="flow-root">
@@ -194,7 +199,7 @@ const Dashboard = () => {
                                             <div className="min-w-0 flex-1">
                                                 <div>
                                                     <div className="text-sm font-medium text-gray-900">
-                                                        {activity.userName}
+                                                        You
                                                     </div>
                                                     <p className="mt-0.5 text-sm text-gray-500">
                                                         {new Date(activity.timestamp).toLocaleString()}
@@ -218,6 +223,8 @@ const Dashboard = () => {
                                                                 } else if (activity.entityType === 'product' && activity.type !== 'delete') {
                                                                     // Find the farm ID for this product
                                                                     navigate(`/farms`);
+                                                                } else if (activity.entityType === 'crop' && activity.type !== 'delete') {
+                                                                    navigate(`/sell-crops/${activity.entityId}`);
                                                                 }
                                                             }}
                                                             className="text-farm-green-600 hover:text-farm-green-800 text-xs font-medium"

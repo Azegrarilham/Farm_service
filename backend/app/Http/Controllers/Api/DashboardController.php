@@ -8,6 +8,7 @@ use App\Models\Farm;
 use App\Models\Product;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class DashboardController extends Controller
 {
@@ -16,11 +17,22 @@ class DashboardController extends Controller
      */
     public function getStatistics(): JsonResponse
     {
-        $totalFarms = Farm::count();
-        $totalProducts = Product::count();
+        // Get current user ID
+        $userId = Auth::id();
 
-        // Get recent activities with user information
-        $recentActivities = Activity::with('user')
+        // Get farms owned by the current user
+        $userFarms = Farm::where('user_id', $userId)->get();
+        $userFarmIds = $userFarms->pluck('id')->toArray();
+
+        // Count of user's farms
+        $totalFarms = count($userFarms);
+
+        // Count of products from user's farms
+        $totalProducts = Product::whereIn('farm_id', $userFarmIds)->count();
+
+        // Get recent activities only for the current user
+        $recentActivities = Activity::where('user_id', $userId)
+            ->with('user')
             ->orderBy('created_at', 'desc')
             ->take(10)
             ->get()
@@ -34,7 +46,7 @@ class DashboardController extends Controller
                     'entityName' => $activity->entity_name,
                     'timestamp' => $activity->created_at->toIso8601String(),
                     'userId' => $activity->user_id,
-                    'userName' => $activity->userName
+                    'userName' => $activity->user ? $activity->user->name : 'Unknown User'
                 ];
             });
 

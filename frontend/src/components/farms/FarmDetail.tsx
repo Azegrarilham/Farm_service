@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { FarmService, ProductService } from '../../services/api';
+import { FarmService, ProductService, CropService } from '../../services/api';
 import { Farm, Product } from '../../types/farm';
 
 const FarmDetail = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const [farm, setFarm] = useState<Farm | null>(null);
-    const [products, setProducts] = useState<Product[]>([]);
+    const [crops, setCrops] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -19,9 +19,9 @@ const FarmDetail = () => {
                 const farmData = await FarmService.getById(parseInt(id, 10));
                 setFarm(farmData);
 
-                // Fetch the farm's products
-                const productsData = await ProductService.getAllByFarmId(parseInt(id, 10));
-                setProducts(productsData);
+                // Fetch the farm's crops
+                const cropsData = await CropService.getByFarmId(parseInt(id, 10));
+                setCrops(cropsData);
             } catch (error) {
                 setError('Failed to load farm details. Please try again.');
                 console.error('Error fetching farm details:', error);
@@ -239,39 +239,44 @@ const FarmDetail = () => {
                             </div>
                         </div>
 
-                        {/* Products Card */}
+                        {/* Crops Card - Replace Products Card */}
                         <div className="card">
                             <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-lg font-medium text-gray-900">Products</h3>
+                                <h3 className="text-lg font-medium text-gray-900">Crops</h3>
                                 <button
-                                    onClick={() => navigate(`/products/add?farm_id=${farm.id}`)}
+                                    onClick={() => navigate(`/sell-crops/add?farm_id=${farm.id}`)}
                                     className="btn btn-secondary btn-sm flex items-center"
                                 >
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
                                         <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
                                     </svg>
-                                    Add Product
+                                    Add Crop
                                 </button>
                             </div>
 
-                            {products.length === 0 ? (
+                            {crops.length === 0 ? (
                                 <div className="text-center py-8 text-gray-500">
-                                    No products yet. Add your first product to this farm.
+                                    No crops yet. Add your first crop to this farm.
                                 </div>
                             ) : (
                                 <div className="divide-y divide-gray-200">
-                                    {products.map(product => (
-                                        <div key={product.id} className="py-4 flex justify-between items-center">
+                                    {crops.map(crop => (
+                                        <div key={crop.id} className="py-4 flex justify-between items-center">
                                             <div>
-                                                <h4 className="text-base font-medium text-gray-900">{product.name}</h4>
-                                                <p className="text-sm text-gray-500">${product.price} per {product.unit}</p>
+                                                <h4 className="text-base font-medium text-gray-900">{crop.name}</h4>
+                                                <p className="text-sm text-gray-500">${crop.price} per {crop.unit}</p>
+                                                {crop.is_organic && (
+                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 mt-1">
+                                                        Organic
+                                                    </span>
+                                                )}
                                             </div>
                                             <div className="flex items-center space-x-2">
                                                 <span className="text-farm-green-700 font-medium">
-                                                    {product.quantity} {product.unit} available
+                                                    {crop.quantity} {crop.unit} available
                                                 </span>
                                                 <button
-                                                    onClick={() => navigate(`/products/${product.id}`)}
+                                                    onClick={() => navigate(`/sell-crops/${crop.id}`)}
                                                     className="text-farm-green-600 hover:text-farm-green-800"
                                                 >
                                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -293,15 +298,15 @@ const FarmDetail = () => {
 
                             <div className="space-y-4">
                                 <div>
-                                    <h4 className="text-sm font-medium text-gray-500">Total Products</h4>
-                                    <p className="text-2xl font-bold text-farm-green-700">{products.length}</p>
+                                    <h4 className="text-sm font-medium text-gray-500">Total Crops</h4>
+                                    <p className="text-2xl font-bold text-farm-green-700">{crops.length}</p>
                                 </div>
 
-                                {products.length > 0 && (
+                                {crops.length > 0 && (
                                     <div>
                                         <h4 className="text-sm font-medium text-gray-500">Total Value</h4>
                                         <p className="text-2xl font-bold text-farm-green-700">
-                                            ${products.reduce((sum, product) => sum + (product.price * product.quantity), 0).toFixed(2)}
+                                            ${crops.reduce((sum, crop) => sum + (crop.price * crop.quantity), 0).toFixed(2)}
                                         </p>
                                     </div>
                                 )}
