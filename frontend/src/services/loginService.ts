@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { LoginCredentials } from '../types/farm';
+import { storeToken } from '../utils/tokenHelper';
 
 // Create a separate instance specifically for login
 const loginAPI = axios.create({
@@ -10,11 +11,6 @@ const loginAPI = axios.create({
     },
     withCredentials: true,
 });
-
-// Helper to store the token
-export const storeToken = (token: string): void => {
-    localStorage.setItem('access_token', token);
-};
 
 /**
  * Login service specifically for login page
@@ -28,8 +24,12 @@ export const LoginService = {
             console.log('Login response:', response);
 
             if (response.data && response.data.token) {
-                // Store token for future requests
-                storeToken(response.data.token);
+                // Use improved token storage with expiry time
+                // If remember is true, set a longer expiry time (7 days), otherwise 12 hours
+                storeToken(
+                    response.data.token,
+                    credentials.remember ? 168 : 12 // 168 hours = 7 days
+                );
                 return true;
             } else {
                 console.warn('Login response missing token:', response.data);

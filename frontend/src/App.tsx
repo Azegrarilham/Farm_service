@@ -28,6 +28,8 @@ import Cart from './components/cart/Cart';
 // Crop components
 import CropListings from './components/crops/CropListings';
 import SellCropsForm from './components/crops/SellCropsForm';
+import NewCropListings from './components/crops/NewCropListings';
+import CropTroubleshooter from './components/crops/CropTroubleshooter';
 
 // Debug components
 import CartTest from './components/debug/CartTest';
@@ -199,7 +201,7 @@ function App() {
           element={
             <ProtectedRoute>
               <Layout>
-                <CropListings />
+                <NewCropListings />
               </Layout>
             </ProtectedRoute>
           }
@@ -220,6 +222,18 @@ function App() {
             <ProtectedRoute>
               <Layout>
                 <SellCropsForm isEditing={true} />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Crop Troubleshooter */}
+        <Route
+          path="/crop-troubleshooter"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <CropTroubleshooter />
               </Layout>
             </ProtectedRoute>
           }

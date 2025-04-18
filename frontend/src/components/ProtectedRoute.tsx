@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import Auth from '../services/auth';
+import { getToken, isTokenValid, redirectToLogin } from '../utils/tokenHelper';
 
 interface ProtectedRouteProps {
     children: React.ReactNode;
@@ -17,19 +18,29 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
     useEffect(() => {
         const checkAuth = async () => {
-            // Get token from localStorage
-            const token = localStorage.getItem('access_token');
+            // Get token and check if it's valid
+            const token = getToken();
 
             if (!token) {
+                console.log('No token found in ProtectedRoute');
                 setIsAuthenticated(false);
                 setIsChecking(false);
                 return;
             }
 
             try {
-                // Initialize auth service and check authentication
-                const authenticated = await Auth.initialize();
-                setIsAuthenticated(authenticated);
+                // First use the faster token validation method
+                const tokenValid = await isTokenValid();
+
+                if (!tokenValid) {
+                    console.log('Token validation failed, trying Auth.initialize fallback');
+                    // Fall back to Auth.initialize for backward compatibility
+                    const authenticated = await Auth.initialize();
+                    setIsAuthenticated(authenticated);
+                } else {
+                    console.log('Token validation succeeded');
+                    setIsAuthenticated(true);
+                }
             } catch (error) {
                 console.error('Auth check failed:', error);
                 setIsAuthenticated(false);
@@ -52,7 +63,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
     // Redirect to login if not authenticated
     if (!isAuthenticated) {
-        return <Navigate to={redirectTo} state={{ from: location }} replace />;
+        // Add the current path as a redirect parameter
+        const loginPath = `${redirectTo}?redirect=${encodeURIComponent(location.pathname)}`;
+        return <Navigate to={loginPath} state={{ from: location }} replace />;
     }
 
     // Render children if authenticated

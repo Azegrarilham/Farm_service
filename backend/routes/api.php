@@ -33,12 +33,9 @@ Route::get('supplies/{supply}', [SupplyController::class, 'show']);
 Route::apiResource('supplies', SupplyController::class)->only(['index', 'show']);
 Route::get('supplies/categories', [SupplyController::class, 'getCategories']);
 
-// Crop routes
-Route::prefix('crops')->group(function () {
-    Route::get('/', [CropController::class, 'index']);
-    Route::get('/farm/{farmId}', [CropController::class, 'getByFarmId']);
-    Route::get('/{crop}', [CropController::class, 'show']);
-});
+// Public Crop routes
+Route::get('crops', [CropController::class, 'index']);
+Route::get('crops/farm/{farmId}', [CropController::class, 'getByFarmId']);
 
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
@@ -73,131 +70,137 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('orders/{id}/reorder', [OrderController::class, 'reorder']);
     Route::put('orders/{id}/cancel', [OrderController::class, 'cancel']);
 
-    // Protected crop routes
+    // Protected crop routes - specific routes first, wildcard route last
     Route::get('crops/user', [CropController::class, 'getUserCrops']);
     Route::post('crops', [CropController::class, 'store']);
-    Route::put('crops/{crop}', [CropController::class, 'update']);
-    Route::delete('crops/{crop}', [CropController::class, 'destroy']);
-});
+    Route::post('crops/{id}', [CropController::class, 'update']);
+    Route::put('crops/{id}', [CropController::class, 'update']);
+    Route::delete('crops/{id}', [CropController::class, 'destroy']);
+    Route::get('crops/{id}', [CropController::class, 'show']);
 
-// Debug route - remove in production
-Route::get('debug/auth', function (Request $request) {
-    try {
-        $user = Auth::user();
-        $token = $request->bearerToken();
+    // Debug routes - using controller methods
+    Route::get('debug/crops', [CropController::class, 'debug']);
 
-        \Log::info('Debug auth endpoint accessed', [
-            'user_id' => $user ? $user->id : null,
-            'authenticated' => Auth::check(),
-            'token' => $token ? substr($token, 0, 10) . '...' : null,
-            'headers' => $request->headers->all(),
-        ]);
+    // Debug routes - placed within auth middleware
+    Route::get('debug/auth', function (Request $request) {
+        try {
+            $user = Auth::user();
+            $token = $request->bearerToken();
 
-        if (!$user) {
+            \Log::info('Debug auth endpoint accessed', [
+                'user_id' => $user ? $user->id : null,
+                'authenticated' => Auth::check(),
+                'token' => $token ? substr($token, 0, 10) . '...' : null,
+                'headers' => $request->headers->all(),
+            ]);
+
+            if (!$user) {
+                return response()->json([
+                    'error' => 'Not authenticated',
+                    'authenticated' => false,
+                    'token_present' => !empty($token),
+                    'tip' => 'Make sure you\'re logged in and sending the correct token.',
+                ], 401);
+            }
+
+            // Get user farms
+            $farms = \App\Models\Farm::where('user_id', $user->id)->get();
+
+            // Get user crops through farms
+            $farmIds = $farms->pluck('id')->toArray();
+            $crops = empty($farmIds) ? [] : \App\Models\Crop::whereIn('farm_id', $farmIds)->with('farm')->get();
+
             return response()->json([
-                'error' => 'Not authenticated',
-                'token_present' => !empty($token),
-                'tip' => 'Make sure you\'re logged in and sending the correct token.',
-            ], 401);
-        }
+                'user' => $user,
+                'authenticated' => true,
+                'check_result' => Auth::check(),
+                'farms' => [
+                    'count' => $farms->count(),
+                    'ids' => $farmIds,
+                    'data' => $farms,
+                ],
+                'crops' => [
+                    'count' => count($crops),
+                    'data' => $crops,
+                ]
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error in debug auth endpoint: ' . $e->getMessage(), [
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
 
-        // Get user farms
-        $farms = \App\Models\Farm::where('user_id', $user->id)->get();
-
-        // Get user crops through farms
-        $farmIds = $farms->pluck('id')->toArray();
-        $crops = empty($farmIds) ? [] : \App\Models\Crop::whereIn('farm_id', $farmIds)->with('farm')->get();
-
-        return response()->json([
-            'user' => $user,
-            'authenticated' => true,
-            'check_result' => Auth::check(),
-            'farms' => [
-                'count' => $farms->count(),
-                'ids' => $farmIds,
-                'data' => $farms,
-            ],
-            'crops' => [
-                'count' => count($crops),
-                'data' => $crops,
-            ]
-        ]);
-    } catch (\Exception $e) {
-        \Log::error('Error in debug auth endpoint: ' . $e->getMessage(), [
-            'file' => $e->getFile(),
-            'line' => $e->getLine(),
-        ]);
-
-        return response()->json([
-            'error' => 'Exception occured',
-            'message' => $e->getMessage(),
-            'file' => $e->getFile(),
-            'line' => $e->getLine(),
-        ], 500);
-    }
-});
-
-// Debug route to fix farm-user association - REMOVE IN PRODUCTION
-Route::get('debug/fix-farm-association/{farmId}', function (Request $request, $farmId) {
-    try {
-        // Get the authenticated user
-        $user = Auth::user();
-
-        if (!$user) {
             return response()->json([
-                'error' => 'Not authenticated',
-                'tip' => 'You must be logged in to use this endpoint.'
-            ], 401);
+                'error' => 'Exception occured',
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ], 500);
         }
+    });
 
-        // Find the farm
-        $farm = \App\Models\Farm::find($farmId);
+    // Debug route to fix farm-user association - REMOVE IN PRODUCTION
+    Route::get('debug/fix-farm-association/{farmId}', function (Request $request, $farmId) {
+        try {
+            // Get the authenticated user
+            $user = Auth::user();
 
-        if (!$farm) {
+            if (!$user) {
+                return response()->json([
+                    'error' => 'Not authenticated',
+                    'tip' => 'You must be logged in to use this endpoint.'
+                ], 401);
+            }
+
+            // Find the farm
+            $farm = \App\Models\Farm::find($farmId);
+
+            if (!$farm) {
+                return response()->json([
+                    'error' => 'Farm not found',
+                    'farm_id' => $farmId
+                ], 404);
+            }
+
+            // Log before update
+            \Log::info('Updating farm user association', [
+                'farm_id' => $farm->id,
+                'farm_name' => $farm->name,
+                'old_user_id' => $farm->user_id,
+                'new_user_id' => $user->id
+            ]);
+
+            // Update the farm's user_id
+            $farm->user_id = $user->id;
+            $farm->save();
+
+            // Get all crops for this farm
+            $crops = \App\Models\Crop::where('farm_id', $farm->id)->get();
+
             return response()->json([
-                'error' => 'Farm not found',
-                'farm_id' => $farmId
-            ], 404);
+                'success' => true,
+                'message' => 'Farm successfully associated with current user',
+                'farm' => $farm,
+                'user' => $user,
+                'crops_count' => $crops->count(),
+                'crops' => $crops
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error fixing farm association: ' . $e->getMessage(), [
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
+            return response()->json([
+                'error' => 'Exception occurred',
+                'message' => $e->getMessage()
+            ], 500);
         }
+    });
 
-        // Log before update
-        \Log::info('Updating farm user association', [
-            'farm_id' => $farm->id,
-            'farm_name' => $farm->name,
-            'old_user_id' => $farm->user_id,
-            'new_user_id' => $user->id
-        ]);
-
-        // Update the farm's user_id
-        $farm->user_id = $user->id;
-        $farm->save();
-
-        // Get all crops for this farm
-        $crops = \App\Models\Crop::where('farm_id', $farm->id)->get();
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Farm successfully associated with current user',
-            'farm' => $farm,
-            'user' => $user,
-            'crops_count' => $crops->count(),
-            'crops' => $crops
-        ]);
-    } catch (\Exception $e) {
-        \Log::error('Error fixing farm association: ' . $e->getMessage(), [
-            'file' => $e->getFile(),
-            'line' => $e->getLine(),
-        ]);
-
-        return response()->json([
-            'error' => 'Exception occurred',
-            'message' => $e->getMessage()
-        ], 500);
-    }
-});
-
-// Debug route to list all farms in system
-Route::get('debug/all-farms', function (Request $request) {
-    $farms = \App\Models\Farm::with('user')->get();
-    return response()->json($farms);
+    // Debug route to list all farms in system
+    Route::get('debug/all-farms', function (Request $request) {
+        $farms = \App\Models\Farm::with('user')->get();
+        return response()->json($farms);
+    });
 });

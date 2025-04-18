@@ -23,7 +23,7 @@ class UserSeeder extends Seeder
 
         // Create farmer user
         User::create([
-            'name' => 'John Farmer',
+            'name' => 'Daemon',
             'email' => 'farmer@example.com',
             'password' => Hash::make('password'),
         ]);

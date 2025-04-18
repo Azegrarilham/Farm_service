@@ -36,15 +36,16 @@ const LoginForm = ({ onLoginSuccess }: LoginFormProps) => {
             if (success) {
                 onLoginSuccess();
 
-                // Check if there's a redirect path stored in localStorage
-                const redirectPath = localStorage.getItem('redirectAfterLogin');
+                // Check if we have a redirect parameter
+                const urlParams = new URLSearchParams(window.location.search);
+                const redirectPath = urlParams.get('redirect');
+
                 if (redirectPath) {
-                    // Clear the stored path
-                    localStorage.removeItem('redirectAfterLogin');
-                    // Navigate to the stored path
+                    // Navigate to the requested page
+                    console.log('Redirecting to:', redirectPath);
                     navigate(redirectPath);
                 } else {
-                    // Default redirect to dashboard
+                    // Otherwise go to dashboard
                     navigate('/dashboard');
                 }
             } else {
@@ -54,6 +55,21 @@ const LoginForm = ({ onLoginSuccess }: LoginFormProps) => {
             setError(error.message || 'Failed to login. Please try again.');
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleLoginSuccess = async () => {
+        // Check if we have a redirect parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        const redirectPath = urlParams.get('redirect');
+
+        if (redirectPath) {
+            // Navigate to the requested page
+            console.log('Redirecting to:', redirectPath);
+            navigate(redirectPath);
+        } else {
+            // Otherwise go to dashboard
+            navigate('/dashboard');
         }
     };
 

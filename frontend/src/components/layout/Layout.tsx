@@ -133,6 +133,13 @@ const Layout = ({ children }: LayoutProps) => {
                                 >
                                     Sell Crops
                                 </Link>
+                                <Link
+                                    to="/crop-troubleshooter"
+                                    className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium
+                    ${location.pathname.includes('/crop-troubleshooter') ? 'border-farm-green-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}`}
+                                >
+                                    Crop Troubleshooter
+                                </Link>
                             </nav>
                         </div>
 
@@ -241,6 +248,13 @@ const Layout = ({ children }: LayoutProps) => {
                   ${location.pathname.includes('/sell-crops') ? 'border-farm-green-500 text-farm-green-700 bg-farm-green-50' : 'border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800'}`}
                             >
                                 Sell Crops
+                            </Link>
+                            <Link
+                                to="/crop-troubleshooter"
+                                className={`block pl-3 pr-4 py-2 border-l-4 text-base font-medium
+                  ${location.pathname.includes('/crop-troubleshooter') ? 'border-farm-green-500 text-farm-green-700 bg-farm-green-50' : 'border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800'}`}
+                            >
+                                Crop Troubleshooter
                             </Link>
                         </div>
 

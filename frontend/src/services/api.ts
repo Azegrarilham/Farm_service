@@ -31,13 +31,29 @@ const storeToken = (token: string) => {
 };
 
 // Helper to get the token
-const getToken = (): string | null => {
+export const getToken = (): string | null => {
     return localStorage.getItem('access_token');
 };
 
 // Helper to remove the token
 const removeToken = () => {
     localStorage.removeItem('access_token');
+};
+
+// Helper to refresh token by re-authenticating
+export const refreshToken = async (): Promise<boolean> => {
+    console.log('Attempting to refresh authentication token...');
+    try {
+        // Remove the old token first
+        removeToken();
+
+        // Redirect to login to get a fresh token
+        window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname);
+        return false;
+    } catch (error) {
+        console.error('Error refreshing token:', error);
+        return false;
+    }
 };
 
 // Add token to all requests if available
@@ -461,74 +477,14 @@ export const CropService = {
     },
 
     getUserCrops: async (): Promise<any[]> => {
+        console.time('getUserCrops');
         try {
-            console.time('getUserCrops');
-            console.log('Attempting to fetch user crops with axios');
+            console.log('Getting user crops with token:', getToken() ? 'Present' : 'Not present');
 
-            // Debug: Manually check auth status and user details
-            try {
-                const userResponse = await api.get('/user');
-                console.log('Current user from API:', userResponse.data);
-            } catch (userErr) {
-                console.error('Error fetching user data:', userErr);
-            }
-
-            // Debug: Directly check farms
-            try {
-                const farmsResponse = await api.get('/farms/user');
-                console.log('User farms from API:', farmsResponse.data);
-            } catch (farmErr) {
-                console.error('Error fetching user farms:', farmErr);
-            }
-
-            // Try direct fetch approach to bypass any caching or interceptors
-            try {
-                console.log('Attempting direct fetch approach as backup');
-                const token = getToken();
-
-                if (!token) {
-                    console.error('No token found for direct fetch');
-                } else {
-                    // Fixed URL - Make sure we use the same URL structure as in the backend
-                    // Remove the /api prefix since the backend route doesn't have it
-                    const directResponse = await fetch(`${API_URL}/api/crops/user`, {
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Accept': 'application/json',
-                            'Cache-Control': 'no-cache, no-store',
-                            'Pragma': 'no-cache'
-                        }
-                    });
-
-                    if (!directResponse.ok) {
-                        console.error(`Direct fetch error: ${directResponse.status} - ${directResponse.statusText}`);
-
-                        // Debug the URL being called
-                        console.error(`URL used: ${API_URL}/api/crops/user`);
-
-                        // Try to get more details about the error
-                        const errorText = await directResponse.text();
-                        console.error('Error response text:', errorText);
-                    } else {
-                        const directData = await directResponse.json();
-                        console.log('Direct fetch result:', directData);
-
-                        if (Array.isArray(directData) && directData.length > 0) {
-                            console.log('Using data from direct fetch');
-                            console.timeEnd('getUserCrops');
-                            return directData;
-                        }
-                    }
-                }
-            } catch (directErr) {
-                console.error('Error with direct fetch approach:', directErr);
-            }
-
-            // Use axios directly to match other service methods
-            console.log('Attempting axios call to /crops/user');
+            // Use axios consistently instead of direct fetch
             const response = await api.get('/crops/user', {
                 headers: {
-                    'Cache-Control': 'no-cache, no-store',
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
                     'Pragma': 'no-cache'
                 }
             });
@@ -566,18 +522,15 @@ export const CropService = {
 
     getById: async (id: number): Promise<any> => {
         try {
-            const response = await fetch(`${API_URL}/api/crops/${id}`);
-            console.log(`Get crop ${id} response status:`, response.status);
-
-            if (!response.ok) {
-                throw new Error(`Error: ${response.status}`);
-            }
-
-            const data = await response.json();
-            console.log(`Get crop ${id} data received:`, data);
-            return data;
-        } catch (error) {
+            // Use the API instance instead of fetch for consistent error handling
+            const response = await api.get(`/crops/${id}`);
+            console.log(`Get crop ${id} response:`, response.status, response.data);
+            return response.data;
+        } catch (error: any) {
             console.error(`Error fetching crop ${id}:`, error);
+            if (error.response?.status === 404) {
+                throw new Error('Crop not found');
+            }
             throw error;
         }
     },
@@ -639,80 +592,38 @@ export const CropService = {
 
     update: async (id: number, cropData: FormData): Promise<any> => {
         try {
-            console.log(`Updating crop ${id} with FormData:`);
-            for (const pair of cropData.entries()) {
-                console.log(pair[0], pair[1]);
-            }
+            // Use _method field to indicate this is a PUT/PATCH
+            cropData.append('_method', 'PUT');
 
-            const token = getToken();
-            console.log('Using token for request:', token ? 'Present' : 'Not present');
-
-            const response = await fetch(`${API_URL}/api/crops/${id}`, {
-                method: 'POST', // Using POST for FormData with _method field
+            // Use API instance for consistency
+            const response = await api.post(`/crops/${id}`, cropData, {
                 headers: {
-                    'Authorization': `Bearer ${token}`
-                },
-                body: cropData
+                    'Content-Type': 'multipart/form-data'
+                }
             });
 
-            console.log('Update crop response status:', response.status);
-
-            // Get raw response body text
-            const responseText = await response.text();
-            console.log('Update crop raw response text:', responseText);
-
-            if (!response.ok) {
-                let errorMsg = `Error: ${response.status}`;
-                try {
-                    const errorData = JSON.parse(responseText);
-                    if (errorData.message) {
-                        errorMsg = errorData.message;
-                    } else if (errorData.error) {
-                        errorMsg = errorData.error;
-                    }
-                } catch (e) {
-                    // Could not parse as JSON, use text as is
-                    if (responseText) {
-                        errorMsg = responseText;
-                    }
-                }
-                throw new Error(errorMsg);
-            }
-
-            try {
-                // Try to parse response as JSON
-                return JSON.parse(responseText);
-            } catch (e) {
-                console.error('Failed to parse response as JSON:', e);
-                return responseText;
-            }
-        } catch (error) {
+            console.log('Update crop response:', response.status, response.data);
+            return response.data;
+        } catch (error: any) {
             console.error(`Error updating crop ${id}:`, error);
+            // Provide more detailed error information
+            if (error.response?.data?.errors) {
+                throw new Error(Object.values(error.response.data.errors).flat().join(', '));
+            }
             throw error;
         }
     },
 
     delete: async (id: number): Promise<void> => {
         try {
-            const token = getToken();
-            console.log(`Deleting crop ${id}, token:`, token ? 'Present' : 'Not present');
-
-            const response = await fetch(`${API_URL}/api/crops/${id}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-
-            console.log('Delete crop response status:', response.status);
-
-            if (!response.ok) {
-                const responseText = await response.text();
-                console.error('Delete crop error response:', responseText);
-                throw new Error(`Error: ${response.status}`);
-            }
-        } catch (error) {
+            // Use API instance for consistency
+            const response = await api.delete(`/crops/${id}`);
+            console.log('Delete crop response:', response.status);
+        } catch (error: any) {
             console.error(`Error deleting crop ${id}:`, error);
+            if (error.response?.status === 404) {
+                throw new Error('Crop not found');
+            }
             throw error;
         }
     }
@@ -726,12 +637,27 @@ api.interceptors.response.use(
         const currentPath = window.location.pathname;
         const authPaths = ['/login', '/register', '/forgot-password'];
 
+        console.error('API Error intercepted:', {
+            status: error.response?.status,
+            url: error.config?.url,
+            method: error.config?.method
+        });
+
         // If unauthorized or token expired and not on an auth page
         if (error.response?.status === 401 && !authPaths.includes(currentPath)) {
-            // Remove token and redirect to login
-            removeToken();
-            window.location.href = '/login';
+            console.log('Received 401 unauthorized response, refreshing token...');
+            // Try to refresh token
+            await refreshToken();
         }
+
+        // If 404 Not Found, log specific information
+        if (error.response?.status === 404) {
+            console.error('Resource not found:', {
+                url: error.config?.url,
+                method: error.config?.method
+            });
+        }
+
         return Promise.reject(error);
     }
 );

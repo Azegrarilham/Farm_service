@@ -15,6 +15,29 @@ use Illuminate\Support\Facades\DB;
 class CropController extends Controller
 {
     /**
+     * Find a crop by ID with better error handling
+     */
+    protected function findCropById($id): Crop
+    {
+        $crop = Crop::find($id);
+
+        if (!$crop) {
+            throw new \Illuminate\Database\Eloquent\ModelNotFoundException("No query results for model [App\\Models\\Crop] {$id}");
+        }
+
+        // Check if the authenticated user has permission to access this crop
+        $userId = Auth::id();
+        $farm = $crop->farm;
+
+        if (!$farm || $farm->user_id !== $userId) {
+            \Log::warning("User #{$userId} attempted to access Crop #{$crop->id} which belongs to Farm #{$crop->farm_id} owned by User #{$farm->user_id}");
+            throw new \Illuminate\Auth\Access\AuthorizationException('You do not have permission to access this crop');
+        }
+
+        return $crop;
+    }
+
+    /**
      * Display a listing of the crops.
      */
     public function index(Request $request): JsonResponse
@@ -111,89 +134,123 @@ class CropController extends Controller
     /**
      * Display the specified crop.
      */
-    public function show(Crop $crop): JsonResponse
+    public function show($id): JsonResponse
     {
-        $crop->load('farm');
-        return response()->json($crop);
+        try {
+            $crop = $this->findCropById($id);
+            $crop->load('farm');
+            return response()->json($crop);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json(['error' => 'Crop not found'], 404);
+        } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
+            return response()->json(['error' => $e->getMessage()], 403);
+        } catch (\Exception $e) {
+            \Log::error('Error showing crop: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to retrieve crop details'], 500);
+        }
     }
 
     /**
      * Update the specified crop in storage.
      */
-    public function update(Request $request, Crop $crop): JsonResponse
+    public function update(Request $request, $id): JsonResponse
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'required|string',
-            'quantity' => 'required|numeric|min:0',
-            'unit' => 'required|string|max:50',
-            'price' => 'required|numeric|min:0',
-            'farm_id' => 'required|exists:farms,id',
-            'available_from' => 'nullable|date',
-            'available_until' => 'nullable|date',
-            'is_organic' => 'nullable|boolean',
-            'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-        ]);
+        try {
+            $crop = $this->findCropById($id);
 
-        // Check if user owns the crop's farm
-        $farm = Farm::findOrFail($validated['farm_id']);
-        if ($farm->user_id !== Auth::id()) {
-            return response()->json(['error' => 'You do not own this farm'], 403);
-        }
+            $validated = $request->validate([
+                'name' => 'required|string|max:255',
+                'description' => 'required|string',
+                'quantity' => 'required|numeric|min:0',
+                'unit' => 'required|string|max:50',
+                'price' => 'required|numeric|min:0',
+                'farm_id' => 'required|exists:farms,id',
+                'available_from' => 'nullable|date',
+                'available_until' => 'nullable|date',
+                'is_organic' => 'nullable|boolean',
+                'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            ]);
 
-        // Process images
-        if ($request->hasFile('images')) {
-            $imagesPaths = $crop->images ?? [];
-            foreach ($request->file('images') as $image) {
-                $path = $image->store('crop-images', 'public');
-                $imagesPaths[] = $path;
+            // Check if user owns the crop's farm
+            $farm = Farm::findOrFail($validated['farm_id']);
+            if ($farm->user_id !== Auth::id()) {
+                return response()->json(['error' => 'You do not own this farm'], 403);
             }
-            $validated['images'] = $imagesPaths;
+
+            // Process images
+            if ($request->hasFile('images')) {
+                $imagesPaths = $crop->images ?? [];
+                foreach ($request->file('images') as $image) {
+                    $path = $image->store('crop-images', 'public');
+                    $imagesPaths[] = $path;
+                }
+                $validated['images'] = $imagesPaths;
+            }
+
+            $crop->update($validated);
+
+            // Record activity
+            Activity::create([
+                'type' => 'update',
+                'entity_type' => 'crop',
+                'entity_id' => $crop->id,
+                'entity_name' => $crop->name,
+                'user_id' => Auth::id(),
+            ]);
+
+            return response()->json($crop);
+
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json(['error' => 'Crop not found'], 404);
+        } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
+            return response()->json(['error' => $e->getMessage()], 403);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'message' => 'The given data was invalid.',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            \Log::error('Error updating crop: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to update crop'], 500);
         }
-
-        $crop->update($validated);
-
-        // Record activity
-        Activity::create([
-            'type' => 'update',
-            'entity_type' => 'crop',
-            'entity_id' => $crop->id,
-            'entity_name' => $crop->name,
-            'user_id' => Auth::id(),
-        ]);
-
-        return response()->json($crop);
     }
 
     /**
      * Remove the specified crop from storage.
      */
-    public function destroy(Crop $crop): JsonResponse
+    public function destroy($id): JsonResponse
     {
-        // Check if user owns the farm
-        if ($crop->farm->user_id !== Auth::id()) {
-            return response()->json(['error' => 'You do not own this farm'], 403);
-        }
+        try {
+            $crop = $this->findCropById($id);
 
-        // Delete crop images
-        if (!empty($crop->images)) {
-            foreach ($crop->images as $image) {
-                Storage::disk('public')->delete($image);
+            // Delete crop images
+            if (!empty($crop->images)) {
+                foreach ($crop->images as $image) {
+                    Storage::disk('public')->delete($image);
+                }
             }
+
+            // Record activity
+            Activity::create([
+                'type' => 'delete',
+                'entity_type' => 'crop',
+                'entity_id' => $crop->id,
+                'entity_name' => $crop->name,
+                'user_id' => Auth::id(),
+            ]);
+
+            $crop->delete();
+
+            return response()->json(null, 204);
+
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json(['error' => 'Crop not found'], 404);
+        } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
+            return response()->json(['error' => $e->getMessage()], 403);
+        } catch (\Exception $e) {
+            \Log::error('Error deleting crop: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to delete crop'], 500);
         }
-
-        // Record activity
-        Activity::create([
-            'type' => 'delete',
-            'entity_type' => 'crop',
-            'entity_id' => $crop->id,
-            'entity_name' => $crop->name,
-            'user_id' => Auth::id(),
-        ]);
-
-        $crop->delete();
-
-        return response()->json(null, 204);
     }
 
     /**
@@ -282,6 +339,69 @@ class CropController extends Controller
                 'trace' => $e->getTraceAsString()
             ]);
             return response()->json(['error' => 'Failed to fetch your crops: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Debug endpoint for the crop troubleshooter
+     */
+    public function debug(Request $request): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+
+            if (!$user) {
+                return response()->json([
+                    'error' => 'Not authenticated',
+                    'tip' => 'You must be logged in to use this endpoint.'
+                ], 401);
+            }
+
+            // Get all crops in the system
+            $allCrops = Crop::with('farm')->get();
+
+            // Get all farms
+            $allFarms = Farm::all();
+
+            // Get user's farms
+            $userFarms = Farm::where('user_id', $user->id)->get();
+            $userFarmIds = $userFarms->pluck('id')->toArray();
+
+            // Get crops that should belong to the user
+            $userCrops = Crop::whereIn('farm_id', $userFarmIds)->with('farm')->get();
+
+            // Check for orphaned crops or data issues
+            $orphanedCrops = Crop::whereNotIn('farm_id', $allFarms->pluck('id')->toArray())->get();
+
+            return response()->json([
+                'diagnostics' => [
+                    'user_id' => $user->id,
+                    'user_email' => $user->email,
+                    'timestamp' => now()->toDateTimeString(),
+                ],
+                'counts' => [
+                    'total_crops' => $allCrops->count(),
+                    'total_farms' => $allFarms->count(),
+                    'user_farms' => $userFarms->count(),
+                    'user_crops' => $userCrops->count(),
+                    'orphaned_crops' => $orphanedCrops->count(),
+                ],
+                'user_farms' => $userFarms,
+                'user_crops' => $userCrops,
+                'orphaned_crops' => $orphanedCrops,
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error in crops diagnostic endpoint: ' . $e->getMessage(), [
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
+            return response()->json([
+                'error' => 'Exception occurred',
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ], 500);
         }
     }
 }

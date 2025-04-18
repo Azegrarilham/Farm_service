@@ -149,9 +149,38 @@ const CropListings = () => {
                     // If farms exist but no crops, check specific farms
                     if (data.farms.count > 0 && data.crops.count === 0) {
                         setError(prev => `${prev} Farms exist but no crops found. This may be a data association issue.`);
+
+                        // DEBUG: Add farm-crop check to help diagnose the issue
+                        try {
+                            const farmsResponse = await fetch('http://localhost:8000/api/farms/user', {
+                                headers: {
+                                    'Authorization': `Bearer ${token}`,
+                                    'Accept': 'application/json'
+                                }
+                            });
+
+                            if (farmsResponse.ok) {
+                                const farmsData = await farmsResponse.json();
+                                if (Array.isArray(farmsData) && farmsData.length > 0) {
+                                    // We have farms, so check if we have crop records
+                                    setError(prev => `${prev} DEBUG: Found ${farmsData.length} farms.`);
+
+                                    // Try to create a test crop if needed
+                                    setShowUtility(true);
+                                }
+                            }
+                        } catch (e) {
+                            console.error('Error checking farms:', e);
+                        }
                     }
                 } else {
-                    setError(`Server says you are NOT authenticated. ${data.tip || ''}`);
+                    setError(`Server says you are NOT authenticated. ${data.tip || 'Make sure you\'re logged in and sending the correct token.'}`);
+
+                    // Force re-login if authentication failed
+                    localStorage.removeItem('access_token');
+                    setTimeout(() => {
+                        window.location.href = '/login';
+                    }, 3000);
                 }
             } catch (err) {
                 console.error('Error checking debug auth endpoint:', err);
@@ -326,17 +355,30 @@ const CropListings = () => {
     };
 
     useEffect(() => {
-        // Fetch current user info
-        const fetchUser = async () => {
+        const fetchUserData = async () => {
             try {
+                // Get user data to ensure we're authenticated
                 const userData = await AuthService.getUser();
                 setCurrentUser(userData);
+
+                // Check if token is valid and working
+                const token = localStorage.getItem('access_token');
+                if (!token || !userData) {
+                    setError('No valid authentication token found. Please log in again.');
+                    navigate('/login');
+                    return;
+                }
+
+                console.log('Current user data:', userData);
             } catch (err) {
                 console.error('Error fetching user data:', err);
+                setError('Authentication error. Please log in again.');
+                localStorage.removeItem('access_token');
+                navigate('/login');
             }
         };
 
-        fetchUser();
+        fetchUserData();
 
         // Listen for the refresh event
         const handleRefreshEvent = () => {
@@ -366,7 +408,7 @@ const CropListings = () => {
             // Clean up event listener
             window.removeEventListener('refreshCrops', handleRefreshEvent);
         };
-    }, []);
+    }, [navigate]);
 
     useEffect(() => {
         const fetchCrops = async () => {
