@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+@theme {
+  --color-farm-green-50: #f0fdf4;
+  --color-farm-green-100: #dcfce7;
+  --color-farm-green-200: #bbf7d0;
+  --color-farm-green-300: #86efac;
+  --color-farm-green-400: #4ade80;
+  --color-farm-green-500: #22c55e;
+  --color-farm-green-600: #16a34a;
+  --color-farm-green-700: #15803d;
+  --color-farm-green-800: #166534;
+  --color-farm-green-900: #14532d;
+
+  --color-soil-brown-50: #fdf8f6;
+  --color-soil-brown-100: #f2e8e5;
+  --color-soil-brown-200: #eaddd7;
+  --color-soil-brown-300: #e0cec7;
+  --color-soil-brown-400: #d2bab0;
+  --color-soil-brown-500: #bfa094;
+  --color-soil-brown-600: #a18072;
+  --color-soil-brown-700: #977669;
+  --color-soil-brown-800: #846358;
+  --color-soil-brown-900: #43302b;
+}
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-900;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply px-4 py-2 rounded-md font-medium transition-colors duration-200;
+  }
+
+  .btn-primary {
+    @apply bg-farm-green-600 hover:bg-farm-green-700 text-white;
+  }
+
+  .btn-secondary {
+    @apply bg-soil-brown-200 hover:bg-soil-brown-300 text-soil-brown-900;
+  }
+
+  .btn-outline {
+    @apply border border-gray-300 hover:bg-gray-100;
+  }
+
+  .form-input {
+    @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-farm-green-500;
+  }
+
+  .form-label {
+    @apply block text-sm font-medium text-gray-700 mb-1;
+  }
+
+  .card {
+    @apply bg-white rounded-lg shadow-md p-6;
+  }
+}
