@@ -63,9 +63,8 @@ const SellCropsForm = ({ isEditing = false }: SellCropsFormProps) => {
         if (isEditing && id) {
             const fetchCrop = async () => {
                 try {
-                    // This would be a real API call in a production app
-                    // For now, we'll just mock the data
-                    const cropData = mockCropListings.find(crop => crop.id === parseInt(id));
+                    setIsFetching(true);
+                    const cropData = await CropService.getById(parseInt(id));
 
                     if (cropData) {
                         setFormData({
@@ -74,7 +73,7 @@ const SellCropsForm = ({ isEditing = false }: SellCropsFormProps) => {
                             quantity: cropData.quantity,
                             unit: cropData.unit,
                             price: cropData.price,
-                            farmId: cropData.farmId,
+                            farmId: cropData.farm_id,
                             available_from: cropData.available_from,
                             available_until: cropData.available_until,
                             is_organic: cropData.is_organic,
@@ -274,6 +273,13 @@ const SellCropsForm = ({ isEditing = false }: SellCropsFormProps) => {
         } finally {
             setIsLoading(false);
         }
+    };
+
+    // Helper function to format image URL
+    const formatImageUrl = (imagePath: string) => {
+        if (!imagePath) return '';
+        if (imagePath.startsWith('http')) return imagePath;
+        return `http://localhost:8000/storage/${imagePath}`;
     };
 
     if (isFetching) {
@@ -525,70 +531,58 @@ const SellCropsForm = ({ isEditing = false }: SellCropsFormProps) => {
                         </label>
                     </div>
 
-                    <div>
-                        <label htmlFor="images" className="form-label">
-                            Crop Photos
+                    <div className="mb-6">
+                        <label htmlFor="images" className="block mb-2 text-sm font-medium text-gray-900">
+                            Upload Images
                         </label>
                         <input
                             type="file"
                             id="images"
                             name="images"
-                            onChange={handleFileChange}
-                            multiple
                             accept="image/*"
+                            multiple
+                            onChange={handleFileChange}
                             ref={fileInputRef}
-                            className="hidden"
+                            className="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-white focus:outline-none"
                         />
-                        <div className="mt-1 flex items-center">
-                            <button
-                                type="button"
-                                onClick={() => fileInputRef.current?.click()}
-                                className="btn btn-outline"
-                            >
-                                Select Photos
-                            </button>
-                            <span className="ml-3 text-sm text-gray-500">
-                                {previewImages.length > 0
-                                    ? `${previewImages.length} photo(s) selected`
-                                    : 'No new photos selected'}
-                            </span>
-                        </div>
+                        <p className="mt-1 text-xs text-gray-500">Upload images of your crop (max 5 files, each not exceeding 2MB)</p>
 
-                        {/* Preview of new photos */}
+                        {/* Show new image previews */}
                         {previewImages.length > 0 && (
-                            <div className="mt-3 grid grid-cols-3 gap-3">
-                                {previewImages.map((src, index) => (
-                                    <div key={index} className="relative">
+                            <div className="mt-2">
+                                <p className="text-sm font-medium text-gray-700">New Images:</p>
+                                <div className="mt-1 flex space-x-2 overflow-x-auto pb-2">
+                                    {previewImages.map((preview, index) => (
                                         <img
-                                            src={src}
-                                            alt={`Preview ${index}`}
-                                            className="h-24 w-full object-cover rounded-md"
+                                            key={`new-${index}`}
+                                            src={preview}
+                                            alt={`Preview ${index + 1}`}
+                                            className="h-20 w-20 object-cover rounded-md border border-gray-200"
                                         />
-                                    </div>
-                                ))}
+                                    ))}
+                                </div>
                             </div>
                         )}
 
-                        {/* Display existing photos */}
+                        {/* Show existing images */}
                         {existingImages.length > 0 && (
-                            <>
-                                <h4 className="text-sm font-medium text-gray-700 mt-4">Existing Photos</h4>
-                                <div className="mt-2 grid grid-cols-3 gap-3">
+                            <div className="mt-4">
+                                <p className="text-sm font-medium text-gray-700">Current Images:</p>
+                                <div className="mt-1 flex space-x-2 overflow-x-auto pb-2">
                                     {existingImages.map((image, index) => (
-                                        <div key={`existing-${index}`} className="relative">
-                                            <img
-                                                src={`/images/${image}`}
-                                                alt={`Crop photo ${index}`}
-                                                className="h-24 w-full object-cover rounded-md"
-                                                onError={(e) => {
-                                                    const target = e.target as HTMLImageElement;
-                                                    target.src = 'https://via.placeholder.com/300x200?text=No+Image';
-                                                }}
-                                            />
-                                        </div>
+                                        <img
+                                            key={`existing-${index}`}
+                                            src={formatImageUrl(image)}
+                                            alt={`Existing ${index + 1}`}
+                                            className="h-20 w-20 object-cover rounded-md border border-gray-200"
+                                            onError={(e) => {
+                                                console.error(`Failed to load image: ${image}`);
+                                                (e.target as HTMLImageElement).src = 'https://via.placeholder.com/80?text=Error';
+                                            }}
+                                        />
                                     ))}
                                 </div>
-                            </>
+                            </div>
                         )}
                     </div>
                 </div>

@@ -30,6 +30,7 @@ import CropListings from './components/crops/CropListings';
 import SellCropsForm from './components/crops/SellCropsForm';
 import NewCropListings from './components/crops/NewCropListings';
 import CropTroubleshooter from './components/crops/CropTroubleshooter';
+import CropDetails from './components/crops/CropDetails';
 
 // Debug components
 import CartTest from './components/debug/CartTest';
@@ -212,6 +213,16 @@ function App() {
             <ProtectedRoute>
               <Layout>
                 <SellCropsForm />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sell-crops/:id"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <CropDetails />
               </Layout>
             </ProtectedRoute>
           }

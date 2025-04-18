@@ -184,9 +184,21 @@ const NewCropListings = () => {
         navigate('/sell-crops/add');
     };
 
+    // Navigate to view crop details
+    const handleViewDetails = (id: number) => {
+        navigate(`/sell-crops/${id}`);
+    };
+
     // Navigate to edit crop
     const handleEditListing = (id: number) => {
         navigate(`/sell-crops/${id}/edit`);
+    };
+
+    // Helper function to format the image URL
+    const formatImageUrl = (imagePath: string) => {
+        if (!imagePath) return null;
+        if (imagePath.startsWith('http')) return imagePath;
+        return `http://localhost:8000/storage/${imagePath}`;
     };
 
     // Check if current user owns the crop
@@ -342,65 +354,61 @@ const NewCropListings = () => {
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {crops.map((crop: any) => (
-                        <div key={crop.id} className="bg-white rounded-lg shadow overflow-hidden">
-                            <div className="h-48 bg-gray-200 relative">
-                                <img
-                                    src={crop.images && crop.images.length > 0
-                                        ? `/storage/${crop.images[0]}`
-                                        : 'https://via.placeholder.com/300x200?text=No+Image'}
-                                    alt={crop.name}
-                                    className="w-full h-full object-cover"
-                                    onError={(e) => {
-                                        const target = e.target as HTMLImageElement;
-                                        target.src = 'https://via.placeholder.com/300x200?text=No+Image';
-                                    }}
-                                />
-                                {crop.is_organic && (
-                                    <div className="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full">
-                                        Organic
+                    {crops.map((crop) => (
+                        <div key={crop.id} className="border rounded-lg overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow">
+                            <div className="h-48 overflow-hidden relative">
+                                {crop.images && crop.images.length > 0 ? (
+                                    <img
+                                        src={formatImageUrl(crop.images[0])}
+                                        alt={crop.name}
+                                        className="w-full h-full object-cover"
+                                        onError={(e) => {
+                                            console.error(`Failed to load image: ${crop.images[0]}`);
+                                            (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300x200?text=No+Image';
+                                        }}
+                                    />
+                                ) : (
+                                    <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                                        <p className="text-gray-500">No image</p>
                                     </div>
                                 )}
+
+                                {crop.is_organic && (
+                                    <span className="absolute top-2 right-2 bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs">
+                                        Organic
+                                    </span>
+                                )}
                             </div>
+
                             <div className="p-4">
                                 <div className="flex justify-between items-start">
-                                    <h3 className="text-lg font-medium text-gray-900">{crop.name}</h3>
-                                    <span className="text-xl font-bold text-farm-green-600">${crop.price.toFixed(2)}<span className="text-sm font-normal text-gray-500">/{crop.unit}</span></span>
+                                    <h3 className="text-lg font-semibold text-gray-800">{crop.name}</h3>
+                                    <p className="text-lg font-bold text-gray-700">${parseFloat(crop.price).toFixed(2)}/{crop.unit}</p>
                                 </div>
-                                <p className="text-sm text-gray-500 mb-2 line-clamp-2">{crop.description}</p>
-                                <div className="mt-2 flex items-center text-sm text-gray-500">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                                    </svg>
-                                    {crop.farm?.name || 'Unknown Farm'}
-                                </div>
-                                <div className="mt-1 flex items-center text-sm text-gray-500">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
-                                    </svg>
-                                    Available: {crop.quantity} {crop.unit}
-                                </div>
-                                <div className="mt-4 flex justify-between items-center">
+
+                                <p className="text-sm text-gray-600 mt-1">Quantity: {crop.quantity} {crop.unit}</p>
+
+                                <p className="text-sm text-gray-500 mt-2 line-clamp-2">
+                                    {crop.description}
+                                </p>
+
+                                <p className="text-xs text-gray-500 mt-2">
+                                    From: {crop.farm?.name || 'Unknown Farm'}
+                                </p>
+
+                                <div className="mt-4 flex justify-between gap-2">
                                     <button
-                                        onClick={() => navigate(`/sell-crops/${crop.id}`)}
-                                        className="btn btn-outline btn-sm"
+                                        onClick={() => handleViewDetails(crop.id)}
+                                        className="btn btn-outline-primary flex-1"
                                     >
                                         View Details
                                     </button>
-
-                                    {isOwner(crop) ? (
+                                    {isOwner(crop) && (
                                         <button
                                             onClick={() => handleEditListing(crop.id)}
-                                            className="btn btn-sm btn-primary"
+                                            className="btn btn-primary flex-1"
                                         >
-                                            Edit Crop Listing
-                                        </button>
-                                    ) : (
-                                        <button
-                                            onClick={() => navigate(`/sell-crops/${crop.id}`)}
-                                            className="btn btn-sm btn-outline"
-                                        >
-                                            View More
+                                            Edit
                                         </button>
                                     )}
                                 </div>
